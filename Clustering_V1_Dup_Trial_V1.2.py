@@ -46,7 +46,7 @@ plt.show()
 
 kmeans_kwargs = {
     "init": "random",
-    "n_init": 20,
+    "n_init": 5,
     }
 
 #step 6.1.1 - generate elbow graph
@@ -149,17 +149,20 @@ print(Joined_Data.head(15))
 #I really ought to map this within a function, that iterates the same thing across all N clusters
  
 #step 6.6.1 - create datasubset containing just the labels
-#the below seems to work fine, however 3: needs to become variable
+#step 6.6.1 v2 - modified to simply drop rows,I can ignore first two rows
+#at later stages, and this lets me provide suitable names to these variables
 #MAKE IT VARIABLE
 #ISN'T IT ALREADY VARIABLE? 3RD COL ONWARDS
 
-Joined_Data_Labs = Joined_Data.iloc[:, 3:]
+New_Joined_Data_Labs = Joined_Data.drop(['rows'], axis=1)
 
-print(Joined_Data_Labs)
+#PLEASE RENAME YOUR VARIABLES, THESE NAMES ARE TERRIBLE
+
+print(New_Joined_Data_Labs)
 
 #step 6.6.1 - generate new dataframe to contain copy of joined data to add results back to
 
-Joined_Data_v2 = Joined_Data
+Joined_Data_v2 = New_Joined_Data_Labs
 
 #step 6.7.0 - generate meta function to iterate over n of clusters
 #step 6.7.1 - dynamically generate new variables to represent % of each row that equals that cluster number
@@ -195,11 +198,41 @@ Joined_Data_v2 = Joined_Data
 #but lets leave step 6.7.0.2 and 6.7.03 aside for now
 #seriously though, with the solution below how on EARTH will i handle 6.7.0.2????
 
-Joined_Data_Labs['Check_Var'] = Joined_Data_Labs.iloc[:,0].astype(str) + Joined_Data_Labs.iloc[:,1].astype(str) + Joined_Data_Labs.iloc[:,2].astype(str) + Joined_Data_Labs.iloc[:,3].astype(str) + Joined_Data_Labs.iloc[:,4].astype(str) + Joined_Data_Labs.iloc[:,5].astype(str) + Joined_Data_Labs.iloc[:,6].astype(str) + Joined_Data_Labs.iloc[:,7].astype(str) + Joined_Data_Labs.iloc[:,8].astype(str) + Joined_Data_Labs.iloc[:,9].astype(str)
-        
-print(Joined_Data_Labs)
+New_Joined_Data_Labs['Check_Var'] = New_Joined_Data_Labs.iloc[:,2].astype(str) + New_Joined_Data_Labs.iloc[:,3].astype(str) + New_Joined_Data_Labs.iloc[:,4].astype(str) + New_Joined_Data_Labs.iloc[:,5].astype(str) + New_Joined_Data_Labs.iloc[:,6].astype(str) + New_Joined_Data_Labs.iloc[:,7].astype(str) + New_Joined_Data_Labs.iloc[:,8].astype(str) + New_Joined_Data_Labs.iloc[:,9].astype(str) + New_Joined_Data_Labs.iloc[:,10].astype(str) + New_Joined_Data_Labs.iloc[:,11].astype(str)
 
-Total_Counts = Joined_Data_Labs.groupby(['Check_Var']).count()
+print(New_Joined_Data_Labs)
+
+#step 6.7.0.4 - using my newly created new_joined_data_labs I now need to number
+#the clusters.
+#I can do this by getting the mean values of x an y, and just multiply together
+#the smaller the value, the closer to the middle it is
+#doesn't work so well for minus values, but lets handle that at a later date
+#WHAT TO DO ABOUT MINUS VALUES.
+
+#THIS IS GOING TO FAIL IF YOU PCA BY MORE THAN 2 VARIABLES
+#JSKJFSKFD;JSK
+print(New_Joined_Data_Labs.dtypes)
+X_means = New_Joined_Data_Labs.groupby('Check_Var')['0_x'].mean()
+Y_means = New_Joined_Data_Labs.groupby('Check_Var')['0_y'].mean()
+
+#HOW ON EARTH AM I GOING TO HANDLE THIS???
+#ASK JON i have no idea
+#maybe i could get away with ordering the naming system based on similarity of shared
+#undefined points. It doesn't need to be strictly identical, as long as 
+#closely grouped clusters have closely mapped names
+#and anyway most people will assign their own names
+
+#using my basic high school maths, if I work out distance between each point and origin
+#and then square both, that = the true distance squared.
+#I'll still need something to handle something in the top left and bottom right areas, and to prioritise where x&y are negative
+
+#honestly this whole lot needs to be a function
+#but if i use my distance assignment based on pythagorean distances, it'll break if pca > 2
+
+
+
+#this works but it's so laughably ugly. Honestly it can just be 1 column long who cares
+Total_Counts = New_Joined_Data_Labs.groupby(['Check_Var']).count()
 
 print(Total_Counts)
 
@@ -266,10 +299,61 @@ def hamming_comparator(cluster_variables, unmapped_variables):
     Final_LOL = [Unmapped_Checks, Cluster_Checks, Distances]
     return Final_LOL
 
+
+#step something DEFINE LATER
 Comparison_Dataset = pd.DataFrame(data=(hamming_comparator(Total_Counts_Cluster_Sets, Ungrouped_Clusters)))
 Comparison_Dataset = Comparison_Dataset.transpose()
 Comparison_Dataset.columns = ['Unassigned_Value', 'Cluster_Values', 'Distance']
+Comparison_Dataset_Sort = Comparison_Dataset.sort_values(by=['Unassigned_Value'])
 print(Comparison_Dataset)
 
+Final_output_vals = Comparison_Dataset_Sort.sort_values('Distance').drop_duplicates('Unassigned_Value')
 
-#IT WORKS!!!!!!!!!
+print(Final_output_vals.head(5))
+
+Closest_2_Clusters = Comparison_Dataset_Sort.sort_values(['Unassigned_Value', 'Distance'], axis=0).groupby('Unassigned_Value').head(2)
+
+print(Closest_2_Clusters)
+
+#step intermediary - change the distance value to be equal to a int
+
+Closest_2_Clusters['Distance'] = pd.to_numeric(Closest_2_Clusters['Distance'])
+
+#now i need to generate a way to weight these groupings based on closeness
+#i.e if you have a 4/6 pairing and a 2/8 pairing, the matchup is closer for the 4/6 than the 2/8
+#could maybe work this out as (iterations - (d1-d2))^2, and chose based on highest vals
+
+#this isn't working because it operates based on 0 index rows
+#as such, requires modification
+#FIX TOMORROW.
+Distances = []
+for i in range(1,(int((len(Closest_2_Clusters.iloc[:,0]))/2))+1):
+    holder = Closest_2_Clusters.iloc[((2*i)-1)][2] - Closest_2_Clusters.iloc[2*i][2]
+    holder = Iterations_used - holder
+    holder = holder * holder
+    Distances.append(holder)
+    Distances.append(holder)
+
+print(Distances)
+
+#now map it to a dataframe and tranpose it
+
+Distances_df = pd.DataFrame(data=Distances)
+
+print(Distances_df)
+
+#make a list of distinct IDs 
+
+#that probs involves manipulation of the hamming_comparator function
+#also make an extra step that recodes such that <=10% = "cluster x", 10<i<40 = "cluster x leaning", 40<=i<=60 = 'equidistant y/x', etc.....
+
+#NAME THE STEP ABOVE
+
+#if I rip apart the hamming_calc,and remove the enumerate function
+#then i can easily add in weighting based on position
+#by flexibly feeding in weight based on position based on sequence of
+#n different clustering algorithms used
+
+#i can also modify my output detailed in the above recoding section such that
+#it not only details base weighting, but could also indicate weighting for higher
+#sections.
